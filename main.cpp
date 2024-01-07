@@ -79,10 +79,10 @@ public:
         Classroom::projector = projector;
     }
     int getCapacity() const {
-        return Capacity;
+        return capacity;
     }
     void setCapacity(int capacity) {
-        Capacity = capacity;
+        capacity = capacity;
     }
 };
 
