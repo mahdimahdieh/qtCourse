@@ -1,11 +1,14 @@
 #include "mainwindow.h"
-#include "out_of_range.h"
 #include <QApplication>
 #include <string>
 #include <exception>
 #include <string>
 #include <exception>
 #include <string>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include "tinyxml2.h"
 
 class range_error : public std::exception {
 private:
@@ -52,19 +55,19 @@ public:
             if (number < 1 || number > 40) {
                 throw range_error(1, 40);
             }
-            this->number = number;
-        } catch (const out_of_range& e) {
+            Classroom::number = number;
+        } catch (const range_error& e) {
             throw;
         }
         try {
             if (capacity < 1 || capacity > 40) {
                 throw range_error(1, 40);
             }
-            this->capacity = capacity;
-        } catch (const out_of_range& e) {
+            Classroom::capacity = capacity;
+        } catch (const range_error& e) {
             throw;
         }
-        this->projector = projector;
+        Classroom::projector = projector;
     }
     int getNumber() const {
         return number;
@@ -83,6 +86,34 @@ public:
     }
     void setCapacity(int capacity) {
         capacity = capacity;
+    }
+};
+
+class TimeClass {
+    std::vector<Classroom> list;
+    const char* address = "class.xml";
+
+    int readFile() {
+        tinyxml2::XMLDocument doc;
+        if (doc.LoadFile(address) != tinyxml2::XML_SUCCESS) {
+            std::cerr << "Error loading XML file." << std::endl;
+            return 1;
+        }
+        tinyxml2::XMLElement* root = doc.FirstChildElement("classrooms");
+        if (root) {
+            for (tinyxml2::XMLElement* elem = root->FirstChildElement("classroom"); elem; elem = elem->NextSiblingElement("classroom")) {
+                int num, cap;
+                bool proj;
+                elem->QueryIntAttribute("number", &num);
+                elem->QueryIntAttribute("capacity", &cap);
+                proj = elem->BoolAttribute("projector");
+                list.emplace_back(num, cap, proj);
+            }
+        } else {
+            std::cerr << "Error finding root element in XML file." << std::endl;
+            return 1;
+        }
+        return 0;
     }
 };
 
