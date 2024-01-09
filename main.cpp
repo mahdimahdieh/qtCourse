@@ -57,37 +57,13 @@ int binarySearch(const std::vector<T>& vec, int (T::*method)() const, int target
     return -1;
 }
 
+// Bubble Sort
 template<typename T>
-void quickSort(std::vector<T>& vec, int (T::*comparator)() const) {
-    if (vec.size() <= 1) {
-        return;
-    }
-    int pivotIndex = vec.size() / 2;
-    T pivot = vec[pivotIndex];
-    int i = 0;
-    int j = vec.size() - 1;
-    while (i <= j) {
-        while((vec[i].*comparator)() < (pivot.*comparator)()) {
-            i++;
-        }
-        while((vec[j].*comparator)() > (pivot.*comparator)()) {
-            j--;
-        }
-        if (i <= j) {
-            std::swap(vec[i], vec[j]);
-            i++;
-            j--;
-        }
-    }
-    if (pivotIndex < j) {
-        quickSort(vec, comparator, 0, j);
-    }
-    if (i < pivotIndex) {
-        quickSort(vec, comparator, i, pivotIndex);
-    }
-    if (i < vec.size()) {
-        quickSort(vec, comparator, i, vec.size()-1);
-    }
+void sort(std::vector<T>& vec, int (T::*comparator)() const) {
+    for (int i=0; i<vec.size()-1; i++)
+        for (int j=0; j<vec.size()-i-1; j++)
+            if ((vec[j].*comparator)() > (vec[j+1].*comparator)())
+                std::swap(vec[j], vec[j+1]);
 }
 
 class Time {
@@ -286,9 +262,11 @@ public:
             if (person.getId() == new_person.getId())
                 throw "Duplicate ID";
         personList.push_back(new_person);
-        if (new_person.isTeacher())
+        sort(personList, &Person::getId);
+        if (new_person.isTeacher()) {
             teacherList.push_back(new_person);
-        quickSort(personList, &Person::getId);
+            sort(teacherList, &Person::getId);
+        }
     }
     int findPerson(int personID) {
         return binarySearch(personList, &Person::getId, personID);
