@@ -290,7 +290,7 @@ class PersonList {
 
 public:
     void addPerson (const Person& new_person) {
-        for (auto person: personList)
+        for (const auto& person: personList)
             if (person.getId() == new_person.getId())
                 throw "Duplicate ID";
         personList.push_back(new_person);
