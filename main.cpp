@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <algorithm> // for std::find
 #include "tinyxml2.h"
 
 #define MIN_START_HOUR 7
@@ -13,10 +14,10 @@
 #define MAX_SESSION_DURATION_MINUTES 240
 
 class range_error : public std::exception {
-private:
     std::string message; // Change to std::string
     int minValue;
     int maxValue;
+
 public:
     range_error(int minValue, int maxValue)
             : minValue(minValue), maxValue(maxValue) {
@@ -34,9 +35,9 @@ public:
 };
 
 class conflict_error : public std::exception {
-private:
     std::string with;
     std::string at;
+
 public:
     conflict_error(const std::string& at) : at(at) {}
     const char* what() const noexcept override {
@@ -58,14 +59,11 @@ public:
 
 template<typename T>
 int binarySearch(const std::vector<T>& vec, int (T::*method)() const, int target) {
-
     int low = 0;
     int high = vec.size() - 1;
-
     while(low <= high) {
         int mid = low + (high - low) / 2;
         int midVal = (vec[mid].*method)();
-
         if(midVal == target) {
             return mid;
         }
@@ -76,7 +74,6 @@ int binarySearch(const std::vector<T>& vec, int (T::*method)() const, int target
             high = mid - 1;
         }
     }
-
     return -1;
 }
 
@@ -92,6 +89,7 @@ void sort(std::vector<T>& vec, int (T::*comparator)() const) {
 class Time {
     int min;
     int hour;
+
 public:
     explicit Time(int min, int hour) {
         try {
@@ -215,6 +213,7 @@ std::string operator+(const Day& day, const std::string& str) {
 class WeekTime {
     Day day;
     Time time;
+
 public:
     WeekTime(Day day, const Time &time) : day(day), time(time) {}
     WeekTime endTime(int durationMinutes) const {
@@ -255,7 +254,7 @@ public:
     bool operator==(const WeekTime& other) const {
         return (day == other.day && time == other.time);
     }
-    std::string weekTimetoString() const {
+    std::string weekTimeToString() const {
         return day + " " + std::to_string(time.getHour()) + ":" + std::to_string(time.getMin());
     }
 
@@ -265,6 +264,7 @@ class Person {
     std::string name;
     int id;
     bool is_teacher;
+
 public:
     explicit Person(const std::string &name, int id, bool teacher = false) : name(name), id(id), is_teacher(teacher) {}
     const std::string &getName() const {
@@ -287,6 +287,7 @@ public:
 class PersonList {
     std::vector<Person> personList;
     std::vector<Person> teacherList;
+
 public:
     void addPerson (const Person& new_person) {
         for (auto person: personList)
@@ -308,6 +309,7 @@ class Classroom {
     int number;
     bool projector;
     int capacity;
+
 public:
     explicit Classroom(int number, int capacity = 40 , bool projector = true) {
         try {
@@ -331,20 +333,11 @@ public:
     int getNumber() const {
         return number;
     }
-    void setNumber(int number) {
-        Classroom::number = number;
-    }
     bool isProjector() const {
         return projector;
     }
-    void setProjector(bool projector) {
-        Classroom::projector = projector;
-    }
     int getCapacity() const {
         return capacity;
-    }
-    void setCapacity(int capacity) {
-        capacity = capacity;
     }
     bool operator==(const Classroom &rhs) const {
         return number == rhs.number;
@@ -355,7 +348,11 @@ public:
 };
 
 class ClassroomList {
+    explicit ClassroomList() {
+        readFile();
+    }
     std::vector<Classroom> list;
+
     const char* address = "class.xml";
     int readFile() {
         tinyxml2::XMLDocument doc;
@@ -379,6 +376,41 @@ class ClassroomList {
         }
         return 0;
     }
+
+public:
+    explicit ClassroomList(const std::vector<Classroom> &list) : list(list) {}
+    const std::vector<Classroom> &getList() const {
+        return list;
+    }
+    void removeUnderCapacity(int minCapacity) {
+        std::vector<Classroom> filtered;
+        for (const auto& classroom : list) {
+            if (classroom.getCapacity() >= minCapacity) {
+                filtered.push_back(classroom);
+            }
+        }
+        for (const auto& classroom : filtered) {
+            auto it = std::find(list.begin(), list.end(), classroom);
+            if (it != list.end()) {
+                list.erase(it);
+            }
+        }
+    }
+    bool isEmpty() const {
+        return list.empty();
+    }
+    auto minCapacity() {
+        auto it = list.begin();
+        int min = list.front().getCapacity();
+        for (auto classroom: list) {
+            if (classroom.getCapacity() < min)
+                it = std::find(list.begin(), list.end(), classroom);
+        }
+        return it;
+    }
+    void removeMinCapacityClassroom() {
+        list.erase(minCapacity());
+    }
 };
 
 class Lesson {
@@ -387,11 +419,12 @@ class Lesson {
     std::map<WeekTime, int> session;
     int teacherID = 0;
     std::vector<int> studentIDList;
+    int lesson_max_capacity;
 public:
     void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
             if (!(new_wt.endTime(durationMin) <= this_session.first || new_wt >= this_session.first.endTime(this_session.second)))
-                throw conflict_error(this_session.first.weekTimetoString());
+                throw conflict_error(this_session.first.weekTimeToString());
     }
     void addSession (const WeekTime& new_wt, int durationMin) {
         if (teacherID != 0 || studentIDList.size() != 0)
@@ -432,6 +465,9 @@ public:
     const std::map<WeekTime, int> &getSession() const {
         return session;
     }
+    int getLessonMaxCapacity() const {
+        return lesson_max_capacity;
+    }
     bool operator<(const Lesson& rhs) const {
         return id < rhs.id;
     }
@@ -445,6 +481,7 @@ public:
 
 class LessonList {
     std::map<Lesson, Classroom> lessonList;
+
 public:
     void conflictLesson (const Lesson& lesson, const Classroom& classroom) {
         for (const auto& elem: lessonList) {
@@ -463,8 +500,29 @@ public:
         conflictLesson(lesson, classroom);
         lessonList.insert(std::make_pair(lesson, classroom));
     }
-    int findEmptyClass(const ClassroomList& list) {
-
+    int findEmptyClass(const Lesson& lesson, ClassroomList list) {
+        bool conflict = false;
+        list.removeUnderCapacity(lesson.getLessonMaxCapacity());
+        while (!list.isEmpty()) {
+            auto min = list.minCapacity();
+            for(auto myLesson: lessonList){
+                if(min->getNumber() == myLesson.second.getNumber()) {
+                    try {
+                        myLesson.first.conflictLessonTime(lesson);
+                    }
+                    catch (conflict_error) {
+                        conflict = true;
+                        break;
+                    }
+                }
+            }
+            if (conflict == false) {
+                return min->getNumber();
+            } else {
+                list.removeMinCapacityClassroom();
+            }
+        }
+        throw "There is no Empty Class";
     }
 };
 
