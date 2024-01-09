@@ -365,6 +365,8 @@ public:
             throw range_error(1, MAX_SESSION_DURATION_MINUTES);
         if (conflictSessionTime(new_wt, durationMin))
             return false;
+        session.emplace(std::pair(new_wt, durationMin));
+        return true;
     }
     int getId() const {
         return id;
