@@ -405,7 +405,7 @@ public:
             e.setWith("self lesson");
             throw;
         }
-        session.emplace(std::pair(new_wt, durationMin));
+        session.insert(std::pair(new_wt, durationMin));
     }
     void conflictLessonTime(const Lesson& lesson) const {
         try {
@@ -432,6 +432,15 @@ public:
     const std::map<WeekTime, int> &getSession() const {
         return session;
     }
+    bool operator<(const Lesson& rhs) const {
+        return id < rhs.id;
+    }
+    bool operator==(const Lesson& other) const {
+        return id == other.id;
+    }
+    bool operator!=(const Lesson& other) const {
+        return id != other.id;
+    }
 };
 
 class LessonList {
@@ -450,7 +459,11 @@ public:
             }
         }
     }
-    void addLesson(const Lesson& lesson) {
+    void addLesson(const Lesson& lesson, const Classroom& classroom) {
+        conflictLesson(lesson, classroom);
+        lessonList.insert(std::make_pair(lesson, classroom));
+    }
+    int findEmptyClass(const ClassroomList& list) {
 
     }
 };
