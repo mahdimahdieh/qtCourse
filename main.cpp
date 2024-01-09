@@ -33,6 +33,29 @@ public:
     }
 };
 
+class conflict_error : public std::exception {
+private:
+    std::string with;
+    std::string at;
+public:
+    conflict_error(const std::string& at) : at(at) {}
+    const char* what() const noexcept override {
+        return ("Conflict Error with: " + with + " at " + at).c_str();
+    }
+    const std::string &getWith() const {
+        return with;
+    }
+    void setWith(const std::string &with) {
+        conflict_error::with = with;
+    }
+    const std::string &getAt() const {
+        return at;
+    }
+    void setAt(const std::string &at) {
+        conflict_error::at = at;
+    }
+};
+
 template<typename T>
 int binarySearch(const std::vector<T>& vec, int (T::*method)() const, int target) {
 
@@ -160,29 +183,33 @@ Day operator++(Day& day) {
 }
 std::ostream& operator<<(std::ostream& os, const Day& day) {
     switch (day) {
-        case Day::sat:
-            os << "Saturday";
-            break;
-        case Day::sun:
-            os << "Sunday";
-            break;
-        case Day::mon:
-            os << "Monday";
-            break;
-        case Day::tue:
-            os << "Tuesday";
-            break;
-        case Day::wed:
-            os << "Wednesday";
-            break;
-        case Day::thu:
-            os << "Thursday";
-            break;
-        case Day::fri:
-            os << "Friday";
-            break;
+        case Day::sat: os << "Saturday"; break;
+        case Day::sun: os << "Sunday"; break;
+        case Day::mon: os << "Monday"; break;
+        case Day::tue: os << "Tuesday"; break;
+        case Day::wed: os << "Wednesday"; break;
+        case Day::thu: os << "Thursday"; break;
+        case Day::fri: os << "Friday"; break;
     }
     return os;
+}
+std::string dayToStr(const Day& day) {
+    std::string str;
+    switch(day) {
+        case Day::sat: str = "Saturday"; break;
+        case Day::sun: str = "Sunday"; break;
+        case Day::mon: str = "Monday"; break;
+        case Day::tue: str = "Tuesday"; break;
+        case Day::wed: str = "Wednesday"; break;
+        case Day::thu: str = "Thursday"; break;
+        case Day::fri: str = "Friday"; break;
+    }
+}
+std::string operator+(const std::string& str, const Day& day) {
+    return str + dayToStr(day);
+}
+std::string operator+(const Day& day, const std::string& str) {
+    return dayToStr(day) + str;
 }
 
 class WeekTime {
@@ -228,6 +255,10 @@ public:
     bool operator==(const WeekTime& other) const {
         return (day == other.day && time == other.time);
     }
+    std::string weekTimetoString() const {
+        return day + " " + std::to_string(time.getHour()) + ":" + std::to_string(time.getMin());
+    }
+
 };
 
 class Person {
@@ -315,6 +346,12 @@ public:
     void setCapacity(int capacity) {
         capacity = capacity;
     }
+    bool operator==(const Classroom &rhs) const {
+        return number == rhs.number;
+    }
+    bool operator!=(const Classroom &rhs) const {
+        return number != rhs.number;
+    }
 };
 
 class ClassroomList {
@@ -350,23 +387,35 @@ class Lesson {
     std::map<WeekTime, int> session;
     int teacherID = 0;
     std::vector<int> studentIDList;
-
 public:
-    bool conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
+    void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
             if (!(new_wt.endTime(durationMin) <= this_session.first || new_wt >= this_session.first.endTime(this_session.second)))
-                return true;
-        return false;
+                throw conflict_error(this_session.first.weekTimetoString());
     }
-    bool addSession (const WeekTime& new_wt, int durationMin) {
+    void addSession (const WeekTime& new_wt, int durationMin) {
         if (teacherID != 0 || studentIDList.size() != 0)
             throw "You are not allowed to add session after assigning Teacher or Student to this Lesson!";
         if (durationMin > MAX_SESSION_DURATION_MINUTES || durationMin < 1)
             throw range_error(1, MAX_SESSION_DURATION_MINUTES);
-        if (conflictSessionTime(new_wt, durationMin))
-            return false;
+        try {
+            conflictSessionTime(new_wt, durationMin);
+        }
+        catch (conflict_error& e) {
+            e.setWith("self lesson");
+            throw;
+        }
         session.emplace(std::pair(new_wt, durationMin));
-        return true;
+    }
+    void conflictLessonTime(const Lesson& lesson) const {
+        try {
+            for (auto temp_session: lesson.getSession())
+                conflictSessionTime(temp_session.first, temp_session.second);
+        }
+        catch (conflict_error& e) {
+            e.setWith(std::to_string(lesson.getId()));
+            throw;
+        }
     }
     int getId() const {
         return id;
@@ -380,10 +429,30 @@ public:
     void setName(const std::string &name) {
         Lesson::name = name;
     }
+    const std::map<WeekTime, int> &getSession() const {
+        return session;
+    }
 };
 
 class LessonList {
     std::map<Lesson, Classroom> lessonList;
+public:
+    void conflictLesson (const Lesson& lesson, const Classroom& classroom) {
+        for (const auto& elem: lessonList) {
+            if (elem.second == classroom) {
+                try {
+                    elem.first.conflictLessonTime(lesson);
+                }
+                catch (conflict_error& e) {
+                    e.setWith(e.getWith() + " at the class number" + std::to_string(elem.second.getNumber()));
+                    throw;
+                }
+            }
+        }
+    }
+    void addLesson(const Lesson& lesson) {
+
+    }
 };
 
 int main(int argc, char *argv[])
