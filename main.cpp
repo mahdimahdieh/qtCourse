@@ -505,7 +505,7 @@ public:
         list.removeUnderCapacity(lesson.getLessonMaxCapacity());
         while (!list.isEmpty()) {
             auto min = list.minCapacity();
-            for(auto myLesson: lessonList){
+            for(const auto& myLesson: lessonList){
                 if(min->getNumber() == myLesson.second.getNumber()) {
                     try {
                         myLesson.first.conflictLessonTime(lesson);
