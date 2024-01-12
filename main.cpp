@@ -1,9 +1,12 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "hicpp-exception-baseclass"
 #include "mainwindow.h"
 #include <QApplication>
 #include <string>
 #include <exception>
 #include <string>
 #include <iostream>
+#include <utility>
 #include <vector>
 #include <map>
 #include <algorithm> // for std::find
@@ -15,6 +18,19 @@
 #define MIN_START_HOUR 7
 #define MAX_START_HOUR 20
 #define MAX_SESSION_DURATION_MINUTES 240
+
+class range_error;
+class conflict_error;
+class Time;
+enum class Day;
+class Date;
+class WeekTime;
+class Person;
+class PersonList;
+class Classroom;
+class ClassroomList;
+class Lesson;
+class LessonList;
 
 class range_error : public std::exception {
     std::string message;
@@ -42,7 +58,7 @@ class conflict_error : public std::exception {
     std::string at;
 
 public:
-    explicit conflict_error(const std::string& at) : at(at) {}
+    explicit conflict_error(std::string  at) : at(std::move(at)) {}
     const char* what() const noexcept override {
         return ("Conflict Error with: " + with + " at " + at).c_str();
     }
@@ -301,7 +317,7 @@ class Person {
     bool is_teacher;
 
 public:
-    explicit Person(const std::string &name, int id, bool teacher = false) : name(name), id(id), is_teacher(teacher) {}
+    explicit Person(std::string name, int id, bool teacher = false) : name(std::move(name)), id(id), is_teacher(teacher) {}
     const std::string &getName() const {
         return name;
     }
@@ -459,16 +475,16 @@ public:
     }
 };
 
+
 class Lesson {
 protected:
     int id;
     std::string name;
     std::map<WeekTime, int> session;
-    int teacherID = 0;
-    std::vector<int> studentIDList;
     int lesson_max_capacity;
+    bool projector;
 public:
-    Lesson(int id, const std::string &name, int capacity) : id(id), name(name), lesson_max_capacity(capacity){}
+    Lesson(int id, std::string name, int capacity) : id(id), name(std::move(name)), lesson_max_capacity(capacity){}
 
     virtual void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
@@ -489,7 +505,6 @@ public:
         }
         session.insert(std::pair(new_wt, durationMin));
     }
-
     virtual void conflictLessonTime(const Lesson& lesson) const {
         try {
             for (auto temp_session: lesson.getSession())
@@ -499,6 +514,12 @@ public:
             e.setWith(std::to_string(lesson.getId()));
             throw;
         }
+    }
+    void conflictPerson(const Person& student,const LessonList& list) {
+        std::vector<Lesson> person_lessons;
+    }
+    void addStudent(const Person& student,const LessonList& list) {
+        std::vector<Lesson> student_lesson_list;
     }
     int getId() const {
         return id;
@@ -517,6 +538,15 @@ public:
     }
     int getLessonMaxCapacity() const {
         return lesson_max_capacity;
+    }
+    bool getNeedProjector() const {
+        return projector;
+    }
+    int getTeacherId() const {
+        return teacherID;
+    }
+    const std::vector<int> &getStudentIdList() const {
+        return studentIDList;
     }
     bool operator<(const Lesson& rhs) const {
         return id < rhs.id;
@@ -561,28 +591,49 @@ public:
     }
 };
 
+
+
 class LessonList {
-    std::map<Lesson, Classroom> lessonList;
+    friend Lesson;
+    std::vector<Lesson> lessonList;
+    ClassroomList classroomList;
+    PersonList personList;
+    std::map<int, int> lessonListLocation;
+    std::map<int, int> lessonListTeacher;
+    std::map<int, std::vector<int>> lessonListStudentList;
 
 public:
-    void conflictLesson (const Lesson& lesson, const Classroom& classroom) {
-        for (const auto& elem: lessonList) {
-            if (elem.second == classroom) {
+    Lesson& getLesson(int lessonID) {
+        return lessonList.at(binarySearch(lessonList, &Lesson::getId, lessonID));
+    }
+    const ClassroomList& getClassroomList() const {
+        return classroomList;
+    }
+    const PersonList& getPersonList() const {
+        return personList;
+    }
+    void conflictLesson (const int newLessonId, const int classroomNumber) {
+        for (const auto& elem: lessonListLocation) {
+            if (elem.second == classroomNumber) {
                 try {
-                    elem.first.conflictLessonTime(lesson);
+                    getLesson(elem.first).conflictLessonTime(NewLessonId);
                 }
                 catch (conflict_error& e) {
-                    e.setWith(e.getWith() + " at the class number" + std::to_string(elem.second.getNumber()));
+                    e.setWith(e.getWith() + " at the class number" + std::to_string(elem.second));
                     throw;
                 }
             }
         }
     }
-    void addLesson(const Lesson& lesson, const Classroom& classroom) {
-        conflictLesson(lesson, classroom);
-        lessonList.insert(std::make_pair(lesson, classroom));
+    void setClassrom(const int lessonId, const int classroomNumber) {
+        conflictLesson(lessonId, classroomNumber);
+        if (lessonListLocation.find(lessonId) == lessonListLocation.end() && classroomList.getClassroomInfo(classroomNumber).getCapacity() >= getLesson(lessonId).getLessonMaxCapacity() && (getLesson(lessonId).getNeedProjector()? classroomList.getClassroomInfo(classroomNumber).isProjector() : true))
+            lessonListLocation.insert(std::make_pair(lessonId, classroomNumber));
+        else if (lessonListLocation.find(lessonId) != lessonListLocation.end() && classroomList.getClassroomInfo(classroomNumber).getCapacity() >= getLesson(lessonId).getLessonMaxCapacity() && (getLesson(lessonId).getNeedProjector()? classroomList.getClassroomInfo(classroomNumber).isProjector() : true)) {
+            lessonListLocation[lessonId] = classroomNumber;
+        }
     }
-    int findEmptyClass(const Lesson& lesson, ClassroomList list) {
+    int findEmptyClass(const int lessonId, const ClassroomList& list) {
         bool conflict = false;
         list.removeUnderCapacity(lesson.getLessonMaxCapacity());
         while (!list.isEmpty()) {
@@ -606,13 +657,6 @@ public:
         }
         throw "There is no Empty Class";
     }
-    Lesson getLessonInfo(int lessonID) const {
-        for (const auto& lesson:  lessonList) {
-            if (lesson.first.getId() == lessonID){
-                return lesson.first;
-            }
-        }
-    }
     Classroom getClassroomInfo(int lessonID) const {
         for (const auto& lesson:  lessonList) {
             if (lesson.first.getId() == lessonID){
@@ -620,7 +664,7 @@ public:
             }
         }
     }
-    std::vector<Lesson> getPlannedLessonOnClassroomList(int classroomNumber) {
+    std::vector<Lesson> getPlannedLessonOnClassroomList(int classroomNumber) const {
         std::vector<Lesson> list;
         for (const auto& lesson:  lessonList) {
             if (lesson.second.getNumber() == classroomNumber){
@@ -629,7 +673,14 @@ public:
         }
         return list;
     }
-
+    std::vector<Lesson> getLessonListOfPerson(int id) {
+        std::vector<Lesson> list;
+        for (const auto& lesson:  lessonList) {
+            if (lesson.first.getStudentIdList().end() != std::find(lesson.first.getStudentIdList().begin(), lesson.first.getStudentIdList().end(), id))
+                list.push_back(lesson.first);
+        }
+        return list;
+    }
 };
 
 int main(int argc, char *argv[])
@@ -643,8 +694,9 @@ int main(int argc, char *argv[])
 /*
  * Documentation
  * 1. You are not allow to add session after assigning student or teacher
- *
+ * 2. Github Address:
  *
  */
 
+#pragma clang diagnostic pop
 #pragma clang diagnostic pop
