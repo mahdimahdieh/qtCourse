@@ -14,7 +14,7 @@
 #define MAX_SESSION_DURATION_MINUTES 240
 
 class range_error : public std::exception {
-    std::string message; // Change to std::string
+    std::string message;
     int minValue;
     int maxValue;
 
@@ -209,6 +209,38 @@ std::string operator+(const std::string& str, const Day& day) {
 std::string operator+(const Day& day, const std::string& str) {
     return dayToStr(day) + str;
 }
+
+class Date {
+private:
+    int day, month, year;
+
+public:
+    Date(int d, int m, int y) : day(d), month(m), year(y) {}
+    bool operator==(const Date& other) const {
+        return (day == other.day) && (month == other.month) && (year == other.year);
+    }
+    bool operator!=(const Date& other) const {
+        return !(*this == other);
+    }
+    bool operator<(const Date& other) const {
+        if (year != other.year) {
+            return year < other.year;
+        }
+        if (month != other.month) {
+            return month < other.month;
+        }
+        return day < other.day;
+    }
+    bool operator<=(const Date& other) const {
+        return (*this < other) || (*this == other);
+    }
+    bool operator>(const Date& other) const {
+        return !(*this <= other);
+    }
+    bool operator>=(const Date& other) const {
+        return !(*this < other);
+    }
+};
 
 class WeekTime {
     Day day;
@@ -423,6 +455,7 @@ public:
 };
 
 class Lesson {
+protected:
     int id;
     std::string name;
     std::map<WeekTime, int> session;
@@ -431,7 +464,8 @@ class Lesson {
     int lesson_max_capacity;
 public:
     Lesson(int id, const std::string &name) : id(id), name(name) {}
-    void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
+
+    virtual void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
             if (!(new_wt.endTime(durationMin) <= this_session.first || new_wt >= this_session.first.endTime(this_session.second)))
                 throw conflict_error(this_session.first.weekTimeToString());
@@ -450,7 +484,8 @@ public:
         }
         session.insert(std::pair(new_wt, durationMin));
     }
-    void conflictLessonTime(const Lesson& lesson) const {
+
+    virtual void conflictLessonTime(const Lesson& lesson) const {
         try {
             for (auto temp_session: lesson.getSession())
                 conflictSessionTime(temp_session.first, temp_session.second);
@@ -486,6 +521,35 @@ public:
     }
     bool operator!=(const Lesson& other) const {
         return id != other.id;
+    }
+};
+
+class ExtraLesson : public Lesson {
+    Date start, end;
+
+public:
+    ExtraLesson(int id, const std::string &name, const Date &start, const Date &anEnd) : Lesson(id, name), start(start), end(anEnd) {}
+    void conflictLessonTime(const Lesson& lesson) const {
+        if (typeid(lesson) == typeid(ExtraLesson)) {
+            const ExtraLesson& extraLesson = *dynamic_cast<const ExtraLesson*>(&lesson);
+            if (start >= extraLesson.getEnd() || end <= extraLesson.getStart()) {
+                return;
+            }
+        }
+        try {
+            for (auto temp_session: lesson.getSession())
+                conflictSessionTime(temp_session.first, temp_session.second);
+        }
+        catch (conflict_error& e) {
+            e.setWith(std::to_string(lesson.getId()));
+            throw;
+        }
+    }
+    const Date &getStart() const {
+        return start;
+    }
+    const Date &getEnd() const {
+        return end;
     }
 };
 
