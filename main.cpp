@@ -300,8 +300,17 @@ public:
             sort(teacherList, &Person::getId);
         }
     }
-    int findPerson(int personID) {
-        return binarySearch(personList, &Person::getId, personID);
+    Person getPersonInfo(int personID) {
+        return personList.at(binarySearch(personList, &Person::getId, personID));
+    }
+    Person getTeacherInfo(int teacherID) {
+        return teacherList.at(binarySearch(personList, &Person::getId, teacherID));
+    }
+    const std::vector<Person>& getPersonList() const {
+        return personList;
+    }
+    const std::vector<Person>& getTeacherList() const {
+        return teacherList;
     }
 };
 
@@ -421,6 +430,7 @@ class Lesson {
     std::vector<int> studentIDList;
     int lesson_max_capacity;
 public:
+    Lesson(int id, const std::string &name) : id(id), name(name) {}
     void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
             if (!(new_wt.endTime(durationMin) <= this_session.first || new_wt >= this_session.first.endTime(this_session.second)))
@@ -524,6 +534,30 @@ public:
         }
         throw "There is no Empty Class";
     }
+    Lesson getLessonInfo(int lessonID) const {
+        for (const auto& lesson:  lessonList) {
+            if (lesson.first.getId() == lessonID){
+                return lesson.first;
+            }
+        }
+    }
+    Classroom getClassroomInfo(int lessonID) const {
+        for (const auto& lesson:  lessonList) {
+            if (lesson.first.getId() == lessonID){
+                return lesson.second;
+            }
+        }
+    }
+    std::vector<Lesson> getPlannedLessonOnClassroomList(int classroomNumber) {
+        std::vector<Lesson> list;
+        for (const auto& lesson:  lessonList) {
+            if (lesson.second.getNumber() == classroomNumber){
+                list.push_back(lesson.first);
+            }
+        }
+        return list;
+    }
+
 };
 
 int main(int argc, char *argv[])
