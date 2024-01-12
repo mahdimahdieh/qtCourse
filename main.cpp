@@ -595,7 +595,7 @@ public:
         return personList;
     }
     void conflictLesson (const int newLessonId, const int classroomNumber) {
-        if (lessonListTeacher.find(newLessonId) != lessonListTeacher.end() || lessonListStudentList.find(newLessonId) != lessonListStudentList.end())
+        if (lessonListTeacher[newLessonId] != -1 || !lessonListStudentList[newLessonId].empty())
             throw "You are not allowed to add session after assigning Teacher or Student to this Lesson!";
         for (const auto& elem: lessonListLocation) {
             if (elem.second == classroomNumber) {
@@ -609,8 +609,13 @@ public:
             }
         }
     }
-    void setClassrom(const int lessonId, const int classroomNumber) {
-        conflictLesson(lessonId, classroomNumber);
+    void setClassroom(const int lessonId, const int classroomNumber) {
+        try {
+            conflictLesson(lessonId, classroomNumber);
+        }
+        catch (conflict_error& e) {
+            throw;
+        }
         if (lessonListLocation.find(lessonId) == lessonListLocation.end() && classroomList.getClassroomInfo(classroomNumber).getCapacity() >= getLesson(lessonId).getLessonMaxCapacity() && (getLesson(lessonId).getNeedProjector()? classroomList.getClassroomInfo(classroomNumber).isProjector() : true))
             lessonListLocation.insert(std::make_pair(lessonId, classroomNumber));
         else if (lessonListLocation.find(lessonId) != lessonListLocation.end() && classroomList.getClassroomInfo(classroomNumber).getCapacity() >= getLesson(lessonId).getLessonMaxCapacity() && (getLesson(lessonId).getNeedProjector()? classroomList.getClassroomInfo(classroomNumber).isProjector() : true)) {
@@ -648,7 +653,7 @@ public:
         }
         return list;
     }
-    std::vector<int> getLessonListOfPerson(int id) {
+    std::vector<int> getLessonListOfPerson(int id) const {
         std::vector<int> list;
         for (const auto& lesson: lessonListStudentList) {
             if (lesson.second.end() != std::find(lesson.second.begin(), lesson.second.end(), id))
@@ -660,8 +665,45 @@ public:
         }
         return list;
     }
-    // Conflict Person
-    // Add student
+    void conflictPersonLessonTime(const int lessonId, const int personID) const {
+        try {
+            for (auto oldLesson : getLessonListOfPerson(personID)) {
+                getLesson(oldLesson).conflictLessonTime(getLesson(lessonId));
+            }
+        }
+        catch (conflict_error& e){
+            throw;
+        }
+    }
+    void addStudent(int studentId, int lessonId) {
+        if (lessonListLocation[lessonId] == -1)
+            throw "set classroom!";
+        try {
+            conflictPersonLessonTime(lessonId, studentId);
+            lessonListStudentList[lessonId].push_back(studentId);
+        }
+        catch (conflict_error& e) {
+            throw;
+        }
+    }
+    void setTeacher(int teacherId, int lessonId) {
+        if (lessonListLocation[lessonId] == -1)
+            throw "set classroom!";
+        try {
+            conflictPersonLessonTime(lessonId, teacherId);
+            lessonListTeacher[lessonId] = teacherId;
+        }
+        catch (conflict_error& e) {
+            throw;
+        }
+    }
+    void pushLesson(const Lesson& lesson) {
+        std::vector<int> empty;
+        lessonList.push_back(lesson);
+        lessonListLocation.insert(std::make_pair(lesson.getId(), -1));
+        lessonListTeacher.insert(std::make_pair(lesson.getId(), -1));
+        lessonListStudentList.insert(std::make_pair(lesson.getId(), empty));
+    }
 };
 
 int main(int argc, char *argv[])
@@ -675,7 +717,7 @@ int main(int argc, char *argv[])
 /*
  * Documentation
  * 1. You are not allow to add session after assigning student or teacher
- * 2. Github Address:
+ * 2. GitHub Address: https://github.com/mahdimahdieh/qtCourse
  *
  */
 
