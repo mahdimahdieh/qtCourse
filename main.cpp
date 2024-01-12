@@ -485,15 +485,12 @@ protected:
     bool projector;
 public:
     Lesson(int id, std::string name, int capacity) : id(id), name(std::move(name)), lesson_max_capacity(capacity){}
-
     virtual void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
             if (!(new_wt.endTime(durationMin) <= this_session.first || new_wt >= this_session.first.endTime(this_session.second)))
                 throw conflict_error(this_session.first.weekTimeToString());
     }
     void addSession (const WeekTime& new_wt, int durationMin) {
-        if (teacherID != 0 || !studentIDList.empty())
-            throw "You are not allowed to add session after assigning Teacher or Student to this Lesson!";
         if (durationMin > MAX_SESSION_DURATION_MINUTES || durationMin < 1)
             throw range_error(1, MAX_SESSION_DURATION_MINUTES);
         try {
@@ -514,12 +511,6 @@ public:
             e.setWith(std::to_string(lesson.getId()));
             throw;
         }
-    }
-    void conflictPerson(const Person& student,const LessonList& list) {
-        std::vector<Lesson> person_lessons;
-    }
-    void addStudent(const Person& student,const LessonList& list) {
-        std::vector<Lesson> student_lesson_list;
     }
     int getId() const {
         return id;
@@ -542,12 +533,6 @@ public:
     bool getNeedProjector() const {
         return projector;
     }
-    int getTeacherId() const {
-        return teacherID;
-    }
-    const std::vector<int> &getStudentIdList() const {
-        return studentIDList;
-    }
     bool operator<(const Lesson& rhs) const {
         return id < rhs.id;
     }
@@ -563,10 +548,7 @@ class ExtraLesson : public Lesson {
     Date start, end;
 
 public:
-    ExtraLesson(int id, const std::string &name, int capacity, const Date &start, const Date &anEnd) : Lesson(id, name,
-                                                                                                              capacity),
-                                                                                                       start(start),
-                                                                                                       end(anEnd) {}
+    ExtraLesson(int id, const std::string &name, int capacity, const Date &start, const Date &anEnd) : Lesson(id, name, capacity), start(start), end(anEnd) {}
     void conflictLessonTime(const Lesson& lesson) const override {
         if (typeid(lesson) == typeid(ExtraLesson)) {
             const ExtraLesson& extraLesson = *dynamic_cast<const ExtraLesson*>(&lesson);
@@ -603,7 +585,7 @@ class LessonList {
     std::map<int, std::vector<int>> lessonListStudentList;
 
 public:
-    Lesson& getLesson(int lessonID) {
+    const Lesson& getLesson(int lessonID) const {
         return lessonList.at(binarySearch(lessonList, &Lesson::getId, lessonID));
     }
     const ClassroomList& getClassroomList() const {
@@ -613,10 +595,12 @@ public:
         return personList;
     }
     void conflictLesson (const int newLessonId, const int classroomNumber) {
+        if (lessonListTeacher.find(newLessonId) != lessonListTeacher.end() || lessonListStudentList.find(newLessonId) != lessonListStudentList.end())
+            throw "You are not allowed to add session after assigning Teacher or Student to this Lesson!";
         for (const auto& elem: lessonListLocation) {
             if (elem.second == classroomNumber) {
                 try {
-                    getLesson(elem.first).conflictLessonTime(NewLessonId);
+                    getLesson(elem.first).conflictLessonTime(getLesson(newLessonId));
                 }
                 catch (conflict_error& e) {
                     e.setWith(e.getWith() + " at the class number" + std::to_string(elem.second));
@@ -633,54 +617,51 @@ public:
             lessonListLocation[lessonId] = classroomNumber;
         }
     }
-    int findEmptyClass(const int lessonId, const ClassroomList& list) {
+    int findEmptyClass(const int newLessonId) const {
         bool conflict = false;
-        list.removeUnderCapacity(lesson.getLessonMaxCapacity());
-        while (!list.isEmpty()) {
-            auto min = list.minCapacity();
-            for(const auto& myLesson: lessonList){
-                if(min->getNumber() == myLesson.second.getNumber()) {
+        ClassroomList app = classroomList;
+        app.removeUnderCapacity(getLesson(newLessonId).getLessonMaxCapacity());
+        while (!app.isEmpty()) {
+            auto min = app.minCapacity();
+            for(const auto& oldLesson: getPlannedLessonOnClassroom(min->getNumber())){
                     try {
-                        myLesson.first.conflictLessonTime(lesson);
+                        getLesson(oldLesson).conflictLessonTime(getLesson(newLessonId));
                     }
                     catch (conflict_error) {
                         conflict = true;
                         break;
                     }
                 }
-            }
-            if (!conflict) {
-                return min->getNumber();
-            } else {
-                list.removeMinCapacityClassroom();
-            }
+                if (!conflict)
+                    return min->getNumber();
+                else
+                app.removeMinCapacityClassroom();
         }
         throw "There is no Empty Class";
     }
-    Classroom getClassroomInfo(int lessonID) const {
-        for (const auto& lesson:  lessonList) {
-            if (lesson.first.getId() == lessonID){
-                return lesson.second;
-            }
-        }
-    }
-    std::vector<Lesson> getPlannedLessonOnClassroomList(int classroomNumber) const {
-        std::vector<Lesson> list;
-        for (const auto& lesson:  lessonList) {
-            if (lesson.second.getNumber() == classroomNumber){
-                list.push_back(lesson.first);
+    std::vector<int> getPlannedLessonOnClassroom(int classroomNumber) const {
+        std::vector<int> list;
+        for (const auto& lesLoc: lessonListLocation) {
+            if (lesLoc.second == classroomNumber){
+                list.push_back(lesLoc.first);
             }
         }
         return list;
     }
-    std::vector<Lesson> getLessonListOfPerson(int id) {
-        std::vector<Lesson> list;
-        for (const auto& lesson:  lessonList) {
-            if (lesson.first.getStudentIdList().end() != std::find(lesson.first.getStudentIdList().begin(), lesson.first.getStudentIdList().end(), id))
+    std::vector<int> getLessonListOfPerson(int id) {
+        std::vector<int> list;
+        for (const auto& lesson: lessonListStudentList) {
+            if (lesson.second.end() != std::find(lesson.second.begin(), lesson.second.end(), id))
+                list.push_back(lesson.first);
+        }
+        for (const auto& lesson: lessonListTeacher) {
+            if (lesson.second == id)
                 list.push_back(lesson.first);
         }
         return list;
     }
+    // Conflict Person
+    // Add student
 };
 
 int main(int argc, char *argv[])
