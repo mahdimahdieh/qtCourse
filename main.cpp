@@ -9,6 +9,9 @@
 #include <algorithm> // for std::find
 #include "tinyxml2.h"
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnusedValue"
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 #define MIN_START_HOUR 7
 #define MAX_START_HOUR 20
 #define MAX_SESSION_DURATION_MINUTES 240
@@ -39,21 +42,21 @@ class conflict_error : public std::exception {
     std::string at;
 
 public:
-    conflict_error(const std::string& at) : at(at) {}
+    explicit conflict_error(const std::string& at) : at(at) {}
     const char* what() const noexcept override {
         return ("Conflict Error with: " + with + " at " + at).c_str();
     }
     const std::string &getWith() const {
         return with;
     }
-    void setWith(const std::string &with) {
-        conflict_error::with = with;
+    void setWith(const std::string &w) {
+        with = w;
     }
     const std::string &getAt() const {
         return at;
     }
-    void setAt(const std::string &at) {
-        conflict_error::at = at;
+    void setAt(const std::string &a) {
+        at = a;
     }
 };
 
@@ -120,14 +123,14 @@ public:
     int getMin() const {
         return min;
     }
-    void setMin(int min) {
-        Time::min = min % 60;
+    void setMin(int minute) {
+        min = minute % 60;
     }
     int getHour() const {
         return hour;
     }
-    void setHour(int hour) {
-        Time::hour = hour % 24;
+    void setHour(int hr) {
+        hour = hr % 24;
     }
     bool operator>=(const Time& other) const {
         if (hour > other.hour)
@@ -302,14 +305,14 @@ public:
     const std::string &getName() const {
         return name;
     }
-    void setName(const std::string &name) {
-        Person::name = name;
+    void setName(const std::string &string) {
+        Person::name = string;
     }
     int getId() const {
         return id;
     }
-    void setId(int id) {
-        Person::id = id;
+    void setId(int i) {
+        Person::id = i;
     }
     bool isTeacher() const {
         return is_teacher;
@@ -393,7 +396,6 @@ class ClassroomList {
         readFile();
     }
     std::vector<Classroom> list;
-
     const char* address = "class.xml";
     int readFile() {
         tinyxml2::XMLDocument doc;
@@ -452,6 +454,9 @@ public:
     void removeMinCapacityClassroom() {
         list.erase(minCapacity());
     }
+    Classroom getClassroomInfo(int classroomNumber) const {
+        return list.at(binarySearch(list, &Classroom::getNumber,classroomNumber));
+    }
 };
 
 class Lesson {
@@ -463,7 +468,7 @@ protected:
     std::vector<int> studentIDList;
     int lesson_max_capacity;
 public:
-    Lesson(int id, const std::string &name) : id(id), name(name) {}
+    Lesson(int id, const std::string &name, int capacity) : id(id), name(name), lesson_max_capacity(capacity){}
 
     virtual void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
@@ -471,7 +476,7 @@ public:
                 throw conflict_error(this_session.first.weekTimeToString());
     }
     void addSession (const WeekTime& new_wt, int durationMin) {
-        if (teacherID != 0 || studentIDList.size() != 0)
+        if (teacherID != 0 || !studentIDList.empty())
             throw "You are not allowed to add session after assigning Teacher or Student to this Lesson!";
         if (durationMin > MAX_SESSION_DURATION_MINUTES || durationMin < 1)
             throw range_error(1, MAX_SESSION_DURATION_MINUTES);
@@ -498,14 +503,14 @@ public:
     int getId() const {
         return id;
     }
-    void setId(int id) {
-        Lesson::id = id;
+    void setId(int i) {
+        Lesson::id = i;
     }
     const std::string &getName() const {
         return name;
     }
-    void setName(const std::string &name) {
-        Lesson::name = name;
+    void setName(const std::string &string) {
+        Lesson::name = string;
     }
     const std::map<WeekTime, int> &getSession() const {
         return session;
@@ -528,8 +533,11 @@ class ExtraLesson : public Lesson {
     Date start, end;
 
 public:
-    ExtraLesson(int id, const std::string &name, const Date &start, const Date &anEnd) : Lesson(id, name), start(start), end(anEnd) {}
-    void conflictLessonTime(const Lesson& lesson) const {
+    ExtraLesson(int id, const std::string &name, int capacity, const Date &start, const Date &anEnd) : Lesson(id, name,
+                                                                                                              capacity),
+                                                                                                       start(start),
+                                                                                                       end(anEnd) {}
+    void conflictLessonTime(const Lesson& lesson) const override {
         if (typeid(lesson) == typeid(ExtraLesson)) {
             const ExtraLesson& extraLesson = *dynamic_cast<const ExtraLesson*>(&lesson);
             if (start >= extraLesson.getEnd() || end <= extraLesson.getStart()) {
@@ -590,7 +598,7 @@ public:
                     }
                 }
             }
-            if (conflict == false) {
+            if (!conflict) {
                 return min->getNumber();
             } else {
                 list.removeMinCapacityClassroom();
@@ -638,3 +646,5 @@ int main(int argc, char *argv[])
  *
  *
  */
+
+#pragma clang diagnostic pop
