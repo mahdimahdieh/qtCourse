@@ -1,12 +1,12 @@
 #include <string>
 #include <exception>
-#include <string>
 #include <iostream>
 #include <utility>
 #include <vector>
 #include <map>
 #include <algorithm> // for std::find
 #include "tinyxml2.h"
+#include <string>
 
 
 #define MIN_START_HOUR 7
@@ -30,13 +30,14 @@ class range_error : public std::exception {
     std::string message;
     int minValue;
     int maxValue;
+    char* charStar;
 
 public:
     range_error(int minValue, int maxValue)
-        : minValue(minValue), maxValue(maxValue) {
+            : minValue(minValue), maxValue(maxValue) {
         message = "Out of range error: Range: [" + std::to_string(minValue) + " - " + std::to_string(maxValue) + "]";
     }
-    const char* what() const noexcept override {
+    const char* what() {
         return message.c_str();
     }
     int getMinValue() const {
@@ -50,23 +51,26 @@ public:
 class conflict_error : public std::exception {
     std::string with;
     std::string at;
+    std::string message;
 
 public:
     explicit conflict_error(std::string  at) : at(std::move(at)) {}
     const char* what() const noexcept override {
-        return ("Conflict Error with: " + with + " at " + at).c_str();
+        return message.c_str();
     }
     const std::string &getWith() const {
         return with;
     }
     void setWith(const std::string &w) {
         with = w;
+        message = "Conflict Error with: " + with + " at " + at;
     }
     const std::string &getAt() const {
         return at;
     }
     void setAt(const std::string &a) {
         at = a;
+        message = "Conflict Error with: " + with + " at " + at;
     }
 };
 
@@ -194,27 +198,28 @@ Day operator++(Day& day) {
 }
 std::ostream& operator<<(std::ostream& os, const Day& day) {
     switch (day) {
-    case Day::sat: os << "Saturday"; break;
-    case Day::sun: os << "Sunday"; break;
-    case Day::mon: os << "Monday"; break;
-    case Day::tue: os << "Tuesday"; break;
-    case Day::wed: os << "Wednesday"; break;
-    case Day::thu: os << "Thursday"; break;
-    case Day::fri: os << "Friday"; break;
+        case Day::sat: os << "Saturday"; break;
+        case Day::sun: os << "Sunday"; break;
+        case Day::mon: os << "Monday"; break;
+        case Day::tue: os << "Tuesday"; break;
+        case Day::wed: os << "Wednesday"; break;
+        case Day::thu: os << "Thursday"; break;
+        case Day::fri: os << "Friday"; break;
     }
     return os;
 }
 std::string dayToStr(const Day& day) {
     std::string str;
     switch(day) {
-    case Day::sat: str = "Saturday"; break;
-    case Day::sun: str = "Sunday"; break;
-    case Day::mon: str = "Monday"; break;
-    case Day::tue: str = "Tuesday"; break;
-    case Day::wed: str = "Wednesday"; break;
-    case Day::thu: str = "Thursday"; break;
-    case Day::fri: str = "Friday"; break;
+        case Day::sat: str = "Saturday"; break;
+        case Day::sun: str = "Sunday"; break;
+        case Day::mon: str = "Monday"; break;
+        case Day::tue: str = "Tuesday"; break;
+        case Day::wed: str = "Wednesday"; break;
+        case Day::thu: str = "Thursday"; break;
+        case Day::fri: str = "Friday"; break;
     }
+    return  str;
 }
 std::string operator+(const std::string& str, const Day& day) {
     return str + dayToStr(day);
@@ -304,7 +309,7 @@ public:
         return (day == other.day && time == other.time);
     }
     std::string weekTimeToString() const {
-        return day + " " + std::to_string(time.getHour()) + ":" + std::to_string(time.getMin());
+        return day + " " + std::to_string(time.getHour()) + ":" + (time.getMin() < 10 ? "0" : "") + std::to_string(time.getMin() );
     }
 
 };
@@ -332,7 +337,7 @@ public:
         return is_teacher;
     }
     void printPerson() const {
-        std::cout << "ID: " << id << "\t\t" << "Name: " << name << std::endl;
+        std::cout << "ID: " << id << "\t" << "Name: " << name << std::endl;
     }
 };
 
@@ -361,7 +366,10 @@ public:
         }
     }
     Person getPersonInfo(int personID) const {
-        return personList.at(binarySearch(personList, &Person::getId, personID));
+        if (int index = binarySearch(personList, &Person::getId, personID); index != -1)
+            return personList.at(index);
+        else
+            throw "Couldn't Find Such a Person!";
     }
     Person getTeacherInfo(int teacherID) const {
         return teacherList.at(binarySearch(personList, &Person::getId, teacherID));
@@ -371,6 +379,18 @@ public:
     }
     const std::vector<Person>& getTeacherList() const {
         return teacherList;
+    }
+    bool emptyPerson() {
+        if (personList.empty())
+            return true;
+        else
+            return false;
+    }
+    bool emptyTeacher() {
+        if (teacherList.empty())
+            return true;
+        else
+            return false;
     }
 };
 
@@ -447,11 +467,11 @@ class ClassroomList {
     }
 
 public:
-    explicit ClassroomList(const std::vector<Classroom> &list) : list(list) {
-
-    }
+    explicit ClassroomList(const std::vector<Classroom> &list) : list(list) {}
     explicit ClassroomList() {
         readFile();
+    }
+    ~ClassroomList() {
     }
     const std::vector<Classroom> &getList() const {
         return list;
@@ -463,12 +483,7 @@ public:
                 filtered.push_back(classroom);
             }
         }
-        for (const auto& classroom : filtered) {
-            auto it = std::find(list.begin(), list.end(), classroom);
-            if (it != list.end()) {
-                list.erase(it);
-            }
-        }
+        list = filtered;
     }
     bool isEmpty() const {
         return list.empty();
@@ -497,9 +512,9 @@ protected:
     std::string name;
     std::map<WeekTime, int> session;
     int lesson_max_capacity;
-    bool projector = false;
+    bool projector;
 public:
-    Lesson(int id, std::string name, int capacity) : id(id), name(std::move(name)), lesson_max_capacity(capacity){}
+    Lesson(int id, std::string name, int capacity, bool projector = false) : id(id), name(std::move(name)), lesson_max_capacity(capacity), projector(projector) {}
     virtual void conflictSessionTime(const WeekTime& new_wt, int durationMin) const {
         for (auto this_session : session)
             if (!(new_wt.endTime(durationMin) <= this_session.first || new_wt >= this_session.first.endTime(this_session.second)))
@@ -562,14 +577,14 @@ public:
         std::cout << "Lesson Name: " << name << std::endl;
         std::cout << "Max Capacity: " << lesson_max_capacity << std::endl;
         std::cout << "Requires Projector: " << (projector ? "Yes" : "No") << std::endl;
-        std::cout << "Session Details:" << std::endl;
+        std::cout << "Session Details:\n  ----------" << std::endl;
         for (const auto &sessionEntry: session) {
             const WeekTime &wt = sessionEntry.first;
             int duration = sessionEntry.second;
             std::cout << "  Start Time: " << wt.weekTimeToString() << std::endl;
             std::cout << "  Duration: " << duration << " minutes" << std::endl;
             std::cout << "  End Time: " << wt.endTime(duration).weekTimeToString() << std::endl;
-            std::cout << std::endl;
+            std::cout << "  ----------" << std:: endl;
         }
     }
 };
@@ -578,7 +593,7 @@ class ExtraLesson : public Lesson {
     Date start, end;
 
 public:
-    ExtraLesson(int id, const std::string &name, int capacity, const Date &start, const Date &anEnd) : Lesson(id, name, capacity), start(start), end(anEnd) {}
+    ExtraLesson(int id, const std::string &name, int capacity, const Date &start, const Date &anEnd, bool projector = false) : Lesson(id, name, capacity, projector), start(start), end(anEnd) {}
     void conflictLessonTime(const Lesson& lesson) const override {
         if (typeid(lesson) == typeid(ExtraLesson)) {
             const ExtraLesson& extraLesson = *dynamic_cast<const ExtraLesson*>(&lesson);
@@ -595,12 +610,13 @@ public:
             throw;
         }
     }
-    void printLesson() {
+    void printLesson() const override  {
         Lesson::printLesson();
         std::cout << "  Start Date: " << start.dateToString() << std::endl;
         std::cout << "  End Date: " << end.dateToString() << std::endl;
-        std::cout << std::endl;
+        std::cout << "  ----------" << std::endl;
     }
+
     const Date &getStart() const {
         return start;
     }
@@ -614,14 +630,20 @@ public:
 class LessonList {
     friend Lesson;
     std::vector<Lesson> lessonList;
+    std::vector<ExtraLesson> extraLessonList;
     ClassroomList classroomList;
     PersonList personList;
     std::map<int, int> lessonListLocation;
     std::map<int, int> lessonListTeacher;
     std::map<int, std::vector<int>> lessonListStudentList;
+    Date start, end;
 
 public:
+    LessonList(const Date &start, const Date &anEnd) : start(start), end(anEnd) {}
     const Lesson& getLesson(int lessonID) const {
+        for (const auto& i : extraLessonList)
+            if(i.getId() == lessonID)
+                return i;
         return lessonList.at(binarySearch(lessonList, &Lesson::getId, lessonID));
     }
     const ClassroomList& getClassroomList() const {
@@ -662,12 +684,14 @@ public:
         }
     }
     int findEmptyClass(const int newLessonId) const {
-        bool conflict = false;
+        int minimumCapacity = getLesson(newLessonId).getLessonMaxCapacity();
         ClassroomList app = classroomList;
-        app.removeUnderCapacity(getLesson(newLessonId).getLessonMaxCapacity());
+        app.removeUnderCapacity(minimumCapacity);
         while (!app.isEmpty()) {
+            bool conflict = false;
             auto min = app.minCapacity();
-            for(const auto& oldLesson: getPlannedLessonOnClassroom(min->getNumber())){
+            for (auto oldLesson: getPlannedLessonOnClassroom(min->getNumber())) {
+
                 try {
                     getLesson(oldLesson).conflictLessonTime(getLesson(newLessonId));
                 }
@@ -675,6 +699,7 @@ public:
                     conflict = true;
                     break;
                 }
+
             }
             if (!conflict)
                 return min->getNumber();
@@ -732,6 +757,8 @@ public:
         try {
             if (lessonListLocation[lessonId] == -1)
                 throw "set classroom!";
+            if (!personList.getPersonInfo(teacherId).isTeacher())
+                throw "Person is not student!";
             conflictPersonLessonTime(lessonId, teacherId);
             lessonListTeacher[lessonId] = teacherId;
         }
@@ -743,15 +770,42 @@ public:
         }
 
     }
+    void pushPersonList(const PersonList& newList) {
+        std::vector<Person> newPersonList = newList.getPersonList();
+        while (!newPersonList.empty()) {
+            auto newPerson = newPersonList.back();
+            personList.addPerson(newPerson);
+            newPersonList.pop_back();
+        }
+    }
     void pushLesson(const Lesson& lesson) {
         try {
             if (lesson.getSession().empty())
                 throw "Session is Empty!";
-            std::vector<int> empty;
+            std::vector<int> emptyStudentList;
             lessonList.push_back(lesson);
             lessonListLocation.insert(std::make_pair(lesson.getId(), -1));
             lessonListTeacher.insert(std::make_pair(lesson.getId(), -1));
-            lessonListStudentList.insert(std::make_pair(lesson.getId(), empty));
+            lessonListStudentList.insert(std::make_pair(lesson.getId(), emptyStudentList));
+        }
+        catch (char const* s) {
+            throw;
+        }
+        catch (std::exception& e) {
+            throw;
+        }
+
+    }
+    void pushExtraLesson(const ExtraLesson& lesson) {
+        try {
+            if (lesson.getSession().empty())
+                throw "Session is Empty!";
+            std::vector<int> emptyStudentList;
+            lessonList.push_back(lesson);
+            extraLessonList.push_back(lesson);
+            lessonListLocation.insert(std::make_pair(lesson.getId(), -1));
+            lessonListTeacher.insert(std::make_pair(lesson.getId(), -1));
+            lessonListStudentList.insert(std::make_pair(lesson.getId(), emptyStudentList));
         }
         catch (char const* s) {
             throw;
@@ -762,51 +816,64 @@ public:
 
     }
     void printLessonSpecs(int lessonId) const {
-        getLesson(lessonId).printLesson();
+        std::cout << "\n\n::::::::::::::::::: COURSE INFO :::::::::::::::::::\n";
+        const auto& temp = getLesson(lessonId);
+        temp.printLesson();
         int classroom = lessonListLocation.at(lessonId);
         classroomList.getClassroomInfo(classroom).printClassroomSpecs();
         int teacher = lessonListTeacher.at(lessonId);
-        std::cout << "Teacher:\t";
-        personList.getTeacherInfo(teacher).printPerson();
-        std::cout << std::endl << "Students: " << std::endl;
+        std::cout << "Teacher:  ";
+        (personList.getPersonInfo(teacher)).printPerson();
+        std::cout << "Students: " << std::endl;
         for (int student: lessonListStudentList.at(lessonId)) {
-            personList.getPersonInfo(student).printPerson();
-            std::cout << std:: endl;
+            std::cout << "  ";
+            (personList.getPersonInfo(student)).printPerson();
         }
-        std::cout << std:: endl;
+        std::cout << "::::::::::::::::: END COURSE INFO :::::::::::::::::\n";
+    }
+    void printTermSpecs() const {
+        std::cout << ":::::::::::::::::::::::::::::::: TERM INFO ::::::::::::::::::::::::::::::::" << std::endl;
+        std::cout << "Term Range: From " << start.dateToString() << " To " << end.dateToString();
+        for(auto const& lesson : lessonList) {
+            printLessonSpecs(lesson.getId());
+        }
+        std::cout << "\n:::::::::::::::::::::::::::::: END TERM INFO ::::::::::::::::::::::::::::::" << std::endl;
     }
 };
 
 int main()
 {
-    try{
-        // Define People. If they were teacher then pass true
-        PersonList people;
-        try{
-            people.addPerson(Person("Ali Ahmadi", 501, false));
-            people.addPerson(Person("Hossein Mohammadi", 502, false));
-            people.addPerson(Person("Javad Azizi", 503, false));
-            people.addPerson(Person("Azita Sadeghi", 504, false));
-            people.addPerson(Person("Kamand Esmaeili", 505, true));
-            people.addPerson(Person("Jamal Kamali", 506, true));
-            people.addPerson(Person("Duplicate Test", 501, true));
-        }
-
-            // check not completed course
-        catch (char* s) {
-            std::cout << s << std::endl;
-        }
-        catch (std::exception& e) {
-            e.what();
-            std::cout << std::endl;
-        }
-
+    try {
         //define term
-        LessonList term14021;
+        LessonList term14021(Date(10, 9, 2023), Date(15, 2, 2024));
         //Read Classroom list from file by default
+
+        // Define People. If they were teacher then pass true
+        {
+            PersonList people;
+            try{
+                people.addPerson(Person("Ali Ahmadi", 501, false));
+                people.addPerson(Person("Hossein Mohammadi", 502, false));
+                people.addPerson(Person("Javad Aziz", 503, false));
+                people.addPerson(Person("Azita Sadeghi", 504, false));
+                people.addPerson(Person("Kamand Esmaeili", 505, true));
+                people.addPerson(Person("Jamal Kamali", 506, true));
+                people.addPerson(Person("Duplicate Test", 501, true));
+            }
+                // check not uniqueness
+            catch (char* s) {
+                std::cout << s << std::endl;
+            }
+            catch (std::exception& e) {
+                e.what();
+                std::cout << std::endl;
+            }
+            term14021.pushPersonList(people);
+        }
+
         //Define Course
         {
-            Lesson ap(10, "Advanced Programming", 25);
+            Lesson ap(10, "Advanced Programming", 25, true);
 
             try {
                 term14021.pushLesson(ap);
@@ -814,31 +881,34 @@ int main()
             catch (char const* s) {
                 std::cout << s << std::endl;
             }
-            ap.addSession(WeekTime(Day::sat, Time(14, 00)), 120);
-            ap.addSession(WeekTime(Day::sun, Time(13, 00)),60);
+            ap.addSession(WeekTime(Day::sun, Time(14, 00)), 120);
+            ap.addSession(WeekTime(Day::tue, Time(13, 00)),60);
 
             Lesson dm(11, "Discrete Mathematics", 35);
-            ap.addSession(WeekTime(Day::sat, Time(14, 00)), 120);
-            ap.addSession(WeekTime(Day::wed, Time(8, 00)),60);
+            dm.addSession(WeekTime(Day::sat, Time(14, 00)), 120);
+            dm.addSession(WeekTime(Day::wed, Time(8, 00)),60);
 
             //Extra Lesson
-            ExtraLesson xpCon(12, "XPCon", 10, Date(2, 12, 2023), Date(3, 12, 2023));
+            ExtraLesson xpCon(12, "XPCon", 35, Date(2, 12, 2023), Date(3, 12, 2023), true);
             xpCon.addSession(WeekTime(Day::mon, Time(15, 00)), 50);
+            xpCon.addSession(WeekTime(Day::wed, Time(8, 00)),60);
 
             term14021.pushLesson(ap);
             term14021.pushLesson(dm);
-            term14021.pushLesson(xpCon);
+            term14021.pushExtraLesson(xpCon);
         }
+
         // find empty classroom
-        //auto assign
+        //manual assign classroom
         try {
-            int emptyClass = term14021.findEmptyClass(10);
-            term14021.setClassroom(10, emptyClass);
+            term14021.setClassroom(10, 1);
         }
         catch (std::exception& e) {
             e.what();
             std::cout << std::endl;
         }
+
+        // Auto assign classroom (duplicate capacity in the same time)
         try {
             int emptyClass = term14021.findEmptyClass(11);
             term14021.setClassroom(11, emptyClass);
@@ -847,9 +917,9 @@ int main()
             e.what();
             std::cout << std::endl;
         }
-        //manual assign
         try {
-            term14021.setClassroom(12, 40);
+            int emptyClass = term14021.findEmptyClass(12);
+            term14021.setClassroom(12, emptyClass);
         }
         catch (std::exception& e) {
             e.what();
@@ -862,7 +932,7 @@ int main()
 
         //set wrong teacher
         try {
-            term14021.setTeacher(506, 10);
+            term14021.setTeacher(501, 10);
         }
         catch (std::exception& e) {
             e.what();
@@ -884,7 +954,7 @@ int main()
             std::cout << s << std::endl;
         }
         try {
-            term14021.setTeacher(506, 12);
+            term14021.setTeacher(505, 12);
         }
         catch (std::exception& e) {
             e.what();
@@ -894,7 +964,7 @@ int main()
             std::cout << s << std::endl;
         }
         try {
-            term14021.setTeacher(505, 11);
+            term14021.setTeacher(505, 10);
         }
         catch (std::exception& e) {
             e.what();
@@ -990,27 +1060,7 @@ int main()
 
         //print term
         try {
-            term14021.printLessonSpecs(11);
-        }
-        catch (std::exception& e) {
-            e.what();
-            std::cout << std::endl;
-        }
-        catch (char const* s) {
-            std::cout << s << std::endl;
-        }
-        try {
-            term14021.printLessonSpecs(10);
-        }
-        catch (std::exception& e) {
-            e.what();
-            std::cout << std::endl;
-        }
-        catch (char const* s) {
-            std::cout << s << std::endl;
-        }
-        try {
-            term14021.printLessonSpecs(12);
+            term14021.printTermSpecs();
         }
         catch (std::exception& e) {
             e.what();
