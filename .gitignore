@@ -1,0 +1,23 @@
+# Build output
+build/
+cmake-build-*/
+
+# Qt Creator / CLion user settings
+CMakeLists.txt.user
+*.autosave
+*.user.*
+
+# Compiled objects and binaries
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+Makefile
+CMakeCache.txt
+CMakeFiles/
+
+# OS noise
+.DS_Store
+Thumbs.db
